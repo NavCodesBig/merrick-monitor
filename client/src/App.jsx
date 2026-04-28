@@ -8,6 +8,7 @@ import Campers from './pages/Campers';
 import Dashboard from './pages/Dashboard';
 import Admin from './pages/Admin';
 import Reports from './pages/Reports';
+import Calculator from './pages/Calculator';
 import Logout from './pages/Logout';
 
 // Shows Login when logged out, Landing when logged in — no redirect dance
@@ -71,6 +72,15 @@ export default function App() {
             element={
               <ProtectedRoute roles={['nurse', 'admin', 'director']}>
                 <Reports />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/calculator"
+            element={
+              <ProtectedRoute roles={['nurse', 'admin', 'director']}>
+                <Calculator />
               </ProtectedRoute>
             }
           />
