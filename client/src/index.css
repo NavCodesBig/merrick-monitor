@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-gray-50 text-gray-900 antialiased;
+    overscroll-behavior-y: none;
+  }
+
+  /* Minimum 44px touch targets */
+  input, select, button, textarea {
+    @apply min-h-[44px];
+  }
+
+  select {
+    @apply appearance-none;
+  }
+}
+
+@layer utilities {
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .safe-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+}
