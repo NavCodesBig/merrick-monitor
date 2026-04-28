@@ -9,17 +9,24 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = useCallback(async (userId) => {
-    try {
-      const { data, error } = await supabase
+    const doFetch = () =>
+      supabase
         .from('users')
         .select('id, full_name, role, cabin_id, cabins(id, name)')
         .eq('id', userId)
         .single();
 
+    try {
+      let { data, error } = await doFetch();
+      if (error || !data) {
+        // Retry once after a short delay
+        await new Promise(r => setTimeout(r, 600));
+        ({ data, error } = await doFetch());
+      }
       if (data && !error) {
         setProfile(data);
       } else {
-        console.warn('Profile fetch error:', error?.message);
+        console.warn('Profile fetch error after retry:', error?.message);
       }
     } catch (err) {
       console.error('fetchProfile threw:', err);
@@ -30,18 +37,24 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     let mounted = true;
+    let settleTimer = null;
 
-    // onAuthStateChange fires INITIAL_SESSION immediately — no need for getSession separately
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      (_event, session) => {
         if (!mounted) return;
-        setSession(session);
-        if (session?.user) {
-          await fetchProfile(session.user.id);
-        } else {
-          setProfile(null);
-          setLoading(false);
-        }
+        // Debounce rapid consecutive events (e.g. INITIAL_SESSION → TOKEN_REFRESHED)
+        // so we only act on the settled final state
+        clearTimeout(settleTimer);
+        settleTimer = setTimeout(async () => {
+          if (!mounted) return;
+          setSession(session);
+          if (session?.user) {
+            await fetchProfile(session.user.id);
+          } else {
+            setProfile(null);
+            setLoading(false);
+          }
+        }, 200);
       }
     );
 
@@ -53,6 +66,7 @@ export function AuthProvider({ children }) {
     return () => {
       mounted = false;
       subscription.unsubscribe();
+      clearTimeout(settleTimer);
       clearTimeout(timeout);
     };
   }, [fetchProfile]);

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Merrick Monitor
 
 Blood glucose, insulin, and carb intake tracking for Lions Camp Merrick Nanjemoy's diabetic camp program.
@@ -58,3 +59,6 @@ npm run dev
 - Iroquois
 - Cherokee
 - Conoy
+=======
+# merrick-monitor
+>>>>>>> dedeac97947a31d7750a270df62b1746a72d739a
