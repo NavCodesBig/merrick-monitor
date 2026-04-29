@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const reportsRouter = require('./routes/reports');
 const adminRouter = require('./routes/admin');
+const aiRouter = require('./routes/ai');
 
 const app = express();
 const PORT = process.env.PORT ?? 3001;
@@ -22,6 +23,7 @@ app.get('/health', (_req, res) => {
 // ── Routes ────────────────────────────────────────────────────
 app.use('/api/reports', reportsRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/ai', aiRouter);
 
 // ── 404 ───────────────────────────────────────────────────────
 app.use((_req, res) => {
