@@ -113,23 +113,55 @@ export default function Admin() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState(null);
 
+  const [archivedCampers, setArchivedCampers] = useState([]);
+  const [archivedLoading, setArchivedLoading] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [restoring, setRestoring] = useState(null);
+
   async function fetchUsers() {
     setLoading(true);
-    const { data } = await supabase.auth.admin?.listUsers?.() ?? {};
-
-    // Fall back to fetching from users table using service role via backend
     const { data: profiles } = await supabase
       .from('users')
       .select('*')
       .order('full_name');
-
     setUsers(profiles ?? []);
     setLoading(false);
+  }
+
+  async function fetchArchivedCampers() {
+    setArchivedLoading(true);
+    const { data } = await supabase
+      .from('campers')
+      .select('*, cabins(name)')
+      .eq('is_archived', true)
+      .order('last_name');
+    setArchivedCampers(data ?? []);
+    setArchivedLoading(false);
+  }
+
+  async function handleRestore(camper) {
+    setRestoring(camper.id);
+    try {
+      const { error } = await supabase
+        .from('campers')
+        .update({ is_archived: false })
+        .eq('id', camper.id);
+      if (error) throw error;
+      setArchivedCampers(prev => prev.filter(c => c.id !== camper.id));
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setRestoring(null);
+    }
   }
 
   useEffect(() => {
     if (isAdmin) fetchUsers();
   }, [isAdmin]);
+
+  useEffect(() => {
+    if (isAdmin && showArchived) fetchArchivedCampers();
+  }, [isAdmin, showArchived]);
 
   async function handleCreateUser(e) {
     e.preventDefault();
@@ -204,6 +236,52 @@ export default function Admin() {
           users.map(u => (
             <UserRow key={u.id} user={u} cabins={cabins} onUpdate={fetchUsers} />
           ))
+        )}
+
+        {/* Archived Campers */}
+        <button
+          onClick={() => setShowArchived(v => !v)}
+          className="w-full flex items-center justify-between mt-2 py-3 px-4 bg-gray-100 rounded-2xl text-sm font-semibold text-gray-600 hover:bg-gray-200"
+        >
+          <span>Archived Campers</span>
+          <svg
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+            className={`w-4 h-4 transition-transform ${showArchived ? 'rotate-180' : ''}`}
+          >
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+
+        {showArchived && (
+          <div className="space-y-2">
+            {archivedLoading ? (
+              <div className="text-center py-6">
+                <div className="w-6 h-6 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
+              </div>
+            ) : archivedCampers.length === 0 ? (
+              <p className="text-center text-sm text-gray-400 py-4">No archived campers.</p>
+            ) : (
+              archivedCampers.map(camper => (
+                <div key={camper.id} className="bg-white rounded-2xl border border-gray-200 p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {camper.first_name} {camper.last_name}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {camper.cabins?.name} · Week {camper.camp_week} · {camper.diabetes_type}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleRestore(camper)}
+                    disabled={restoring === camper.id}
+                    className="text-xs font-semibold px-3 py-1.5 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 disabled:opacity-60"
+                  >
+                    {restoring === camper.id ? '…' : 'Restore'}
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
         )}
       </main>
 

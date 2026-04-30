@@ -204,8 +204,8 @@ CREATE POLICY "Nurses and admins update campers"
 DROP POLICY IF EXISTS "Counselors update own cabin campers" ON campers;
 CREATE POLICY "Counselors update own cabin campers"
   ON campers FOR UPDATE TO authenticated
-  USING (get_my_role() = 'counselor' AND cabin_id = get_my_cabin_id())
-  WITH CHECK (get_my_role() = 'counselor' AND cabin_id = get_my_cabin_id());
+  USING (get_my_role() = 'counselor' AND cabin_id = get_my_cabin_id() AND is_archived = false)
+  WITH CHECK (get_my_role() = 'counselor' AND cabin_id = get_my_cabin_id() AND is_archived = false);
 
 DROP POLICY IF EXISTS "Nurses and admins delete campers" ON campers;
 CREATE POLICY "Nurses and admins delete campers"
