@@ -79,7 +79,7 @@ export default function App() {
           <Route
             path="/calculator"
             element={
-              <ProtectedRoute roles={['nurse', 'admin', 'director']}>
+              <ProtectedRoute>
                 <Calculator />
               </ProtectedRoute>
             }

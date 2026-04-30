@@ -82,7 +82,7 @@ const QUICK_LINKS = [
     ),
     bg: 'bg-teal-50 border-teal-200',
     iconColor: 'text-teal-600',
-    roles: ['nurse', 'admin', 'director'],
+    roles: ['nurse', 'admin', 'director', 'counselor'],
   },
   {
     to: '/admin',
