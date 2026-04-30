@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useLogs } from '../hooks/useLogs';
 import { useCampers, useAllCabins } from '../hooks/useCampers';
@@ -18,16 +18,14 @@ export default function Log() {
 
   const currentHour = new Date().getHours();
   const currentHourRef = useRef(null);
+  const cabinInitRef = useRef(false);
 
-  // Set cabin based on role
+  // Set initial cabin once — own cabin for counselors, first cabin for nurses
   useEffect(() => {
-    if (!profile) return;
-    if (profile.role === 'counselor' && profile.cabin_id) {
-      setSelectedCabinId(profile.cabin_id);
-    } else if (cabins.length > 0 && !selectedCabinId) {
-      setSelectedCabinId(cabins[0].id);
-    }
-  }, [profile, cabins, selectedCabinId]);
+    if (!profile || !cabins.length || cabinInitRef.current) return;
+    cabinInitRef.current = true;
+    setSelectedCabinId(profile.cabin_id ?? cabins[0].id);
+  }, [profile, cabins]);
 
   // Scroll to current hour on mount
   useEffect(() => {
@@ -57,7 +55,7 @@ export default function Log() {
     };
   }, []);
 
-  const { logs, loading, saveLog, deleteLog } = useLogs(selectedCabinId, weekNum, dayNum);
+  const { logs, loading, saveLog, deleteLog, confirmDose } = useLogs(selectedCabinId, weekNum, dayNum);
   const { campers } = useCampers(selectedCabinId, weekNum);
 
   // Group log entries by hour
@@ -65,8 +63,6 @@ export default function Log() {
     acc[hour] = logs.filter(l => l.hour === hour);
     return acc;
   }, {});
-
-  const selectedCabin = cabins.find(c => c.id === selectedCabinId);
 
   return (
     <div className="flex flex-col h-screen bg-gray-50 max-w-lg mx-auto">
@@ -88,22 +84,15 @@ export default function Log() {
           </div>
 
           <div className="flex gap-2 items-center">
-            {/* Cabin selector: nurses see dropdown, counselors see label */}
-            {isNurse ? (
-              <select
-                value={selectedCabinId || ''}
-                onChange={e => setSelectedCabinId(e.target.value)}
-                className="flex-1 min-w-0 text-sm font-semibold border border-gray-300 rounded-xl px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500"
-              >
-                {cabins.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            ) : (
-              <span className="flex-1 text-sm font-semibold text-gray-700 px-1">
-                {selectedCabin?.name || 'Your Cabin'}
-              </span>
-            )}
+            <select
+              value={selectedCabinId || ''}
+              onChange={e => setSelectedCabinId(e.target.value)}
+              className="flex-1 min-w-0 text-sm font-semibold border border-gray-300 rounded-xl px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500"
+            >
+              {cabins.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
 
             <select
               value={weekNum}
@@ -152,6 +141,8 @@ export default function Log() {
               dayNum={dayNum}
               cabinId={selectedCabinId}
               loggedBy={user?.id}
+              onConfirmDose={confirmDose}
+              isNurse={isNurse}
             />
           </div>
         ))}

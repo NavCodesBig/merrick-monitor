@@ -186,9 +186,10 @@ CREATE POLICY "Nurses and admins read all campers"
   USING (get_my_role() IN ('nurse', 'admin', 'director'));
 
 DROP POLICY IF EXISTS "Counselors read own cabin campers" ON campers;
-CREATE POLICY "Counselors read own cabin campers"
+DROP POLICY IF EXISTS "Counselors read all campers" ON campers;
+CREATE POLICY "Counselors read all campers"
   ON campers FOR SELECT TO authenticated
-  USING (get_my_role() = 'counselor' AND cabin_id = get_my_cabin_id());
+  USING (get_my_role() = 'counselor');
 
 DROP POLICY IF EXISTS "Nurses and admins insert campers" ON campers;
 CREATE POLICY "Nurses and admins insert campers"
@@ -219,9 +220,10 @@ CREATE POLICY "Nurses and admins read all log entries"
   USING (get_my_role() IN ('nurse', 'admin', 'director'));
 
 DROP POLICY IF EXISTS "Counselors read own cabin log entries" ON log_entries;
-CREATE POLICY "Counselors read own cabin log entries"
+DROP POLICY IF EXISTS "Counselors read all log entries" ON log_entries;
+CREATE POLICY "Counselors read all log entries"
   ON log_entries FOR SELECT TO authenticated
-  USING (get_my_role() = 'counselor' AND cabin_id = get_my_cabin_id());
+  USING (get_my_role() = 'counselor');
 
 DROP POLICY IF EXISTS "Nurses and admins insert log entries" ON log_entries;
 CREATE POLICY "Nurses and admins insert log entries"
@@ -229,9 +231,10 @@ CREATE POLICY "Nurses and admins insert log entries"
   WITH CHECK (get_my_role() IN ('nurse', 'admin', 'director'));
 
 DROP POLICY IF EXISTS "Counselors insert own cabin log entries" ON log_entries;
-CREATE POLICY "Counselors insert own cabin log entries"
+DROP POLICY IF EXISTS "Counselors insert log entries" ON log_entries;
+CREATE POLICY "Counselors insert log entries"
   ON log_entries FOR INSERT TO authenticated
-  WITH CHECK (get_my_role() = 'counselor' AND cabin_id = get_my_cabin_id());
+  WITH CHECK (get_my_role() = 'counselor');
 
 DROP POLICY IF EXISTS "Nurses and admins update log entries" ON log_entries;
 CREATE POLICY "Nurses and admins update log entries"
@@ -240,10 +243,11 @@ CREATE POLICY "Nurses and admins update log entries"
   WITH CHECK (get_my_role() IN ('nurse', 'admin', 'director'));
 
 DROP POLICY IF EXISTS "Counselors update own cabin log entries" ON log_entries;
-CREATE POLICY "Counselors update own cabin log entries"
+DROP POLICY IF EXISTS "Counselors update log entries" ON log_entries;
+CREATE POLICY "Counselors update log entries"
   ON log_entries FOR UPDATE TO authenticated
-  USING (get_my_role() = 'counselor' AND cabin_id = get_my_cabin_id())
-  WITH CHECK (get_my_role() = 'counselor' AND cabin_id = get_my_cabin_id());
+  USING (get_my_role() = 'counselor')
+  WITH CHECK (get_my_role() = 'counselor');
 
 DROP POLICY IF EXISTS "Nurses and admins delete log entries" ON log_entries;
 CREATE POLICY "Nurses and admins delete log entries"
@@ -267,3 +271,36 @@ BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE log_entries;
   END IF;
 END $$;
+
+-- ============================================================
+-- INSULIN DOSE CONFIRMATION
+-- ============================================================
+ALTER TABLE log_entries ADD COLUMN IF NOT EXISTS counselor_confirmed BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE log_entries ADD COLUMN IF NOT EXISTS nurse_confirmed     BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- SECURITY DEFINER so role enforcement happens inside the function,
+-- bypassing RLS while still checking auth.uid() role.
+CREATE OR REPLACE FUNCTION confirm_dose(entry_id UUID, confirmation_field TEXT)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  caller_role user_role;
+BEGIN
+  SELECT role INTO caller_role FROM public.users WHERE id = auth.uid();
+
+  IF confirmation_field = 'counselor_confirmed' THEN
+    -- Any authenticated role can sign off as counselor
+    UPDATE log_entries SET counselor_confirmed = TRUE, updated_at = NOW() WHERE id = entry_id;
+  ELSIF confirmation_field = 'nurse_confirmed' THEN
+    IF caller_role NOT IN ('nurse', 'admin', 'director') THEN
+      RAISE EXCEPTION 'Only nurses, admins, and directors can provide nurse sign-off';
+    END IF;
+    UPDATE log_entries SET nurse_confirmed = TRUE, updated_at = NOW() WHERE id = entry_id;
+  ELSE
+    RAISE EXCEPTION 'Invalid confirmation field: %', confirmation_field;
+  END IF;
+END;
+$$;

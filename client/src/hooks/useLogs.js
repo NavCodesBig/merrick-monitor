@@ -149,5 +149,14 @@ export function useLogs(cabinId, weekNum, dayNum) {
     setLogs(prev => prev.filter(l => l.id !== id));
   }, []);
 
-  return { logs, loading, error, saveLog, deleteLog, refetch: fetchLogs };
+  const confirmDose = useCallback(async (entryId, field) => {
+    const { error } = await supabase.rpc('confirm_dose', {
+      entry_id: entryId,
+      confirmation_field: field,
+    });
+    if (error) throw error;
+    // Realtime subscription will trigger a refetch automatically
+  }, []);
+
+  return { logs, loading, error, saveLog, deleteLog, refetch: fetchLogs, confirmDose };
 }

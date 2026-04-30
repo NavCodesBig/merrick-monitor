@@ -26,7 +26,7 @@ export default function Dashboard() {
 
     const { data: logs } = await supabase
       .from('log_entries')
-      .select('cabin_id, blood_glucose, followup_bg, campers(target_bg_min, target_bg_max)')
+      .select('cabin_id, blood_glucose, followup_bg, insulin_administered, counselor_confirmed, nurse_confirmed, campers(target_bg_min, target_bg_max)')
       .eq('camp_week', weekNum)
       .eq('camp_day', dayNum);
 
@@ -35,24 +35,28 @@ export default function Dashboard() {
     const newStats = {};
     for (const cabin of cabins) {
       const cabinLogs = logs.filter(l => l.cabin_id === cabin.id);
-      let highBg = 0, lowBg = 0, normal = 0, lowBgUnresolved = 0;
+      let highBg = 0, lowBg = 0, normal = 0, lowBgUnresolved = 0, unconfirmedDoses = 0;
 
       for (const log of cabinLogs) {
         const bg = log.blood_glucose;
-        if (!bg) continue;
-        const min = log.campers?.target_bg_min ?? 70;
-        const max = log.campers?.target_bg_max ?? 180;
-        if (bg > max) {
-          highBg++;
-        } else if (bg < min) {
-          lowBg++;
-          if (!log.followup_bg) lowBgUnresolved++;
-        } else {
-          normal++;
+        if (bg != null) {
+          const min = log.campers?.target_bg_min ?? 70;
+          const max = log.campers?.target_bg_max ?? 180;
+          if (bg > max) {
+            highBg++;
+          } else if (bg < min) {
+            lowBg++;
+            if (!log.followup_bg) lowBgUnresolved++;
+          } else {
+            normal++;
+          }
+        }
+        if (Number(log.insulin_administered) > 0 && (!log.counselor_confirmed || !log.nurse_confirmed)) {
+          unconfirmedDoses++;
         }
       }
 
-      newStats[cabin.id] = { highBg, lowBg, normal, lowBgUnresolved };
+      newStats[cabin.id] = { highBg, lowBg, normal, lowBgUnresolved, unconfirmedDoses };
     }
 
     setStats(newStats);
@@ -89,6 +93,7 @@ export default function Dashboard() {
   const totalHighBg = Object.values(stats).reduce((s, c) => s + (c.highBg ?? 0), 0);
   const totalLowBg = Object.values(stats).reduce((s, c) => s + (c.lowBg ?? 0), 0);
   const unresolvedLows = Object.values(stats).reduce((s, c) => s + (c.lowBgUnresolved ?? 0), 0);
+  const unconfirmedDoses = Object.values(stats).reduce((s, c) => s + (c.unconfirmedDoses ?? 0), 0);
 
   return (
     <div className="flex flex-col h-screen bg-gray-50 max-w-lg mx-auto">
@@ -124,7 +129,7 @@ export default function Dashboard() {
 
       <main className="flex-1 overflow-y-auto pb-20 px-4 py-4 space-y-4">
         {/* Summary bar */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <div className="bg-red-50 border border-red-200 rounded-2xl p-3 text-center">
             <div className="text-2xl font-bold text-red-600">{totalHighBg}</div>
             <div className="text-xs text-red-500 mt-0.5">High BG Today</div>
@@ -141,6 +146,14 @@ export default function Dashboard() {
               No F/U
             </div>
           </div>
+          <div className={`border rounded-2xl p-3 text-center ${unconfirmedDoses > 0 ? 'bg-orange-100 border-orange-400' : 'bg-gray-50 border-gray-200'}`}>
+            <div className={`text-2xl font-bold ${unconfirmedDoses > 0 ? 'text-orange-700' : 'text-gray-500'}`}>
+              {unconfirmedDoses}
+            </div>
+            <div className={`text-xs mt-0.5 ${unconfirmedDoses > 0 ? 'text-orange-600' : 'text-gray-400'}`}>
+              Unconfirmed Doses
+            </div>
+          </div>
         </div>
 
         {unresolvedLows > 0 && (
@@ -151,6 +164,22 @@ export default function Dashboard() {
                 {unresolvedLows} low BG event{unresolvedLows > 1 ? 's' : ''} need follow-up
               </p>
               <p className="text-xs text-red-600">Check the affected cabin logs immediately.</p>
+            </div>
+          </div>
+        )}
+
+        {unconfirmedDoses > 0 && (
+          <div className="bg-orange-50 border border-orange-300 rounded-2xl px-4 py-3 flex items-center gap-3">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-6 h-6 text-orange-500 shrink-0">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <circle cx="12" cy="16" r="0.5" fill="currentColor" />
+            </svg>
+            <div>
+              <p className="text-sm font-semibold text-orange-800">
+                {unconfirmedDoses} insulin dose{unconfirmedDoses > 1 ? 's' : ''} need sign-off
+              </p>
+              <p className="text-xs text-orange-600">Open the log and complete dual confirmation.</p>
             </div>
           </div>
         )}

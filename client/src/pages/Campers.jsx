@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useCampers, useAllCabins } from '../hooks/useCampers';
 import CamperForm from '../components/CamperForm';
@@ -168,9 +168,18 @@ export default function Campers() {
   const { isNurse, profile, session } = useAuth();
   const { cabins } = useAllCabins();
 
-  const [filterCabinId, setFilterCabinId] = useState(
-    !isNurse && profile?.cabin_id ? profile.cabin_id : ''
-  );
+  const [filterCabinId, setFilterCabinId] = useState('');
+  const filterInitRef = useRef(false);
+
+  // Default counselors to their own cabin on first load
+  useEffect(() => {
+    if (!profile || filterInitRef.current) return;
+    filterInitRef.current = true;
+    if (!isNurse && profile.cabin_id) {
+      setFilterCabinId(profile.cabin_id);
+    }
+  }, [profile, isNurse]);
+
   const [filterWeek, setFilterWeek] = useState('');
   const [modalCamper, setModalCamper] = useState(undefined); // undefined=closed, null=new, object=editing
   const [insightsCamper, setInsightsCamper] = useState(null);
@@ -229,16 +238,14 @@ export default function Campers() {
 
           {/* Filters */}
           <div className="flex gap-2">
-            {isNurse && (
-              <select
-                value={filterCabinId}
-                onChange={e => setFilterCabinId(e.target.value)}
-                className="flex-1 text-sm border border-gray-300 rounded-xl px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">All Cabins</option>
-                {cabins.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            )}
+            <select
+              value={filterCabinId}
+              onChange={e => setFilterCabinId(e.target.value)}
+              className="flex-1 text-sm border border-gray-300 rounded-xl px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Cabins</option>
+              {cabins.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
             <select
               value={filterWeek}
               onChange={e => setFilterWeek(e.target.value)}
