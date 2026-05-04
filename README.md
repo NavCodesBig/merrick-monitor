@@ -60,5 +60,3 @@ npm run dev
 - Cherokee
 - Conoy
 =======
-# merrick-monitor
->>>>>>> dedeac97947a31d7750a270df62b1746a72d739a
