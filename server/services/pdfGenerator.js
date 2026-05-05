@@ -382,4 +382,120 @@ function generateWeeklyPdf(options) {
   });
 }
 
-module.exports = { generateWeeklyPdf };
+// ── Daily log sheet (blank paper backup) ─────────────────────
+
+function generateDailySheetPdf({ cabinName, weekNum, dayNum, campers }) {
+  const HOURS = [];
+  for (let h = 6; h <= 22; h++) HOURS.push(h); // 6 AM – 10 PM
+
+  const content = [];
+
+  // Page header
+  content.push({
+    columns: [
+      { text: 'Lions Camp Merrick Nanjemoy', fontSize: 9, color: '#6b7280', width: '*' },
+      { text: 'CONFIDENTIAL — Medical Use Only', fontSize: 8, bold: true, color: '#dc2626', alignment: 'center', width: 'auto' },
+      { text: `${cabinName}  ·  Week ${weekNum}, Day ${dayNum}`, fontSize: 9, color: '#6b7280', alignment: 'right', width: '*' },
+    ],
+    margin: [0, 0, 0, 2],
+  });
+  content.push({ text: 'Daily Insulin Log Sheet', fontSize: 14, bold: true, color: '#1d4ed8', margin: [0, 0, 0, 4] });
+  content.push({
+    columns: [
+      { text: 'Date: ___________________________', fontSize: 8, color: '#374151', width: '*' },
+      { text: 'Shift Nurse: ___________________________', fontSize: 8, color: '#374151', width: '*' },
+      { text: `Printed: ${new Date().toLocaleString()}`, fontSize: 7, color: '#9ca3af', alignment: 'right', width: '*' },
+    ],
+    margin: [0, 0, 0, 10],
+  });
+
+  for (let ci = 0; ci < campers.length; ci++) {
+    const c = campers[ci];
+
+    if (ci > 0) {
+      content.push({
+        canvas: [{ type: 'line', x1: 0, y1: 0, x2: 540, y2: 0, lineColor: '#d1d5db', lineWidth: 0.5 }],
+        margin: [0, 8, 0, 8],
+      });
+    }
+
+    // Camper header
+    content.push({
+      columns: [
+        { text: `${c.first_name} ${c.last_name}`, fontSize: 11, bold: true, color: '#111827', width: '*' },
+        { text: `${c.diabetes_type}`, fontSize: 8, color: '#6b7280', width: 'auto', margin: [6, 2, 0, 0] },
+        { text: `  ·  ${c.insulin_type || 'Insulin type not set'}`, fontSize: 8, color: '#6b7280', width: 'auto', margin: [0, 2, 0, 0] },
+        { text: `  ·  Target: ${c.target_bg_min}–${c.target_bg_max} mg/dL`, fontSize: 8, bold: true, color: '#1d4ed8', width: 'auto', margin: [0, 2, 0, 0] },
+      ],
+      margin: [0, 0, 0, 2],
+    });
+
+    if (c.notes) {
+      content.push({ text: `Clinical note: ${c.notes}`, fontSize: 7, italics: true, color: '#b45309', margin: [0, 0, 0, 2] });
+    }
+
+    const gridHeader = [
+      { text: 'Time',         style: 'sheetHead' },
+      { text: 'BG',           style: 'sheetHead' },
+      { text: 'Carbs (g)',    style: 'sheetHead' },
+      { text: 'Insulin (u)',  style: 'sheetHead' },
+      { text: 'Follow-up BG',style: 'sheetHead' },
+      { text: 'Event / Notes',style: 'sheetHead' },
+      { text: 'Couns.',       style: 'sheetHead' },
+      { text: 'Nurse',        style: 'sheetHead' },
+    ];
+
+    const gridRows = HOURS.map(h => [
+      { text: formatHour(h), fontSize: 7, color: '#374151' },
+      { text: '' }, { text: '' }, { text: '' }, { text: '' }, { text: '' }, { text: '' }, { text: '' },
+    ]);
+
+    content.push({
+      table: {
+        headerRows: 1,
+        widths: [36, 30, 40, 42, 52, '*', 44, 38],
+        body: [gridHeader, ...gridRows],
+      },
+      layout: {
+        hLineWidth: (i, node) => (i === 0 || i === node.table.body.length) ? 0.75 : 0.3,
+        vLineWidth: () => 0.3,
+        hLineColor: () => '#d1d5db',
+        vLineColor: () => '#d1d5db',
+        fillColor: (rowIndex) => rowIndex === 0 ? '#eff6ff' : (rowIndex % 2 === 0 ? '#f9fafb' : null),
+        paddingLeft:   () => 3,
+        paddingRight:  () => 3,
+        paddingTop:    () => 2,
+        paddingBottom: () => 2,
+      },
+      margin: [0, 0, 0, 2],
+    });
+  }
+
+  const docDef = {
+    pageSize:     'LETTER',
+    pageMargins:  [36, 36, 36, 28],
+    defaultStyle: { font: 'Roboto' },
+    footer: (currentPage, pageCount) => ({
+      text:      `Page ${currentPage} of ${pageCount}  —  Lions Camp Merrick Nanjemoy  —  CONFIDENTIAL`,
+      fontSize:  7,
+      color:     '#9ca3af',
+      alignment: 'center',
+      margin:    [0, 8, 0, 0],
+    }),
+    content,
+    styles: {
+      sheetHead: { fontSize: 7, bold: true, color: '#1d4ed8', alignment: 'center' },
+    },
+  };
+
+  return new Promise((resolve, reject) => {
+    const doc = printer.createPdfKitDocument(docDef);
+    const chunks = [];
+    doc.on('data',  chunk => chunks.push(chunk));
+    doc.on('end',   ()    => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+    doc.end();
+  });
+}
+
+module.exports = { generateWeeklyPdf, generateDailySheetPdf };

@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { verifyToken, requireRole } = require('../middleware/verifyToken');
 const { supabaseAdmin } = require('../services/supabaseAdmin');
-const { generateWeeklyPdf } = require('../services/pdfGenerator');
+const { generateWeeklyPdf, generateDailySheetPdf } = require('../services/pdfGenerator');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 async function getAiInsights(camper, weekNum, logEntries) {
@@ -127,6 +127,63 @@ router.get(
     } catch (err) {
       console.error('Report generation error:', err);
       res.status(500).json({ error: err.message ?? 'Failed to generate report' });
+    }
+  }
+);
+
+// GET /api/reports/daily-sheet?cabin_id=...&week=...&day=...
+router.get(
+  '/daily-sheet',
+  verifyToken,
+  requireRole('nurse', 'admin', 'director'),
+  async (req, res) => {
+    const { cabin_id, week, day } = req.query;
+    const weekNum = parseInt(week, 10);
+    const dayNum  = parseInt(day,  10);
+
+    if (!cabin_id || !weekNum || !dayNum ||
+        weekNum < 1 || weekNum > 3 || dayNum < 1 || dayNum > 7) {
+      return res.status(400).json({ error: 'cabin_id, week (1–3), and day (1–7) are required' });
+    }
+
+    try {
+      const { data: cabin, error: cabinErr } = await supabaseAdmin
+        .from('cabins')
+        .select('id, name')
+        .eq('id', cabin_id)
+        .single();
+
+      if (cabinErr || !cabin) return res.status(404).json({ error: 'Cabin not found' });
+
+      const { data: campers, error: campersErr } = await supabaseAdmin
+        .from('campers')
+        .select('id, first_name, last_name, diabetes_type, insulin_type, target_bg_min, target_bg_max, notes')
+        .eq('cabin_id', cabin_id)
+        .eq('camp_week', weekNum)
+        .eq('is_archived', false)
+        .order('last_name', { ascending: true });
+
+      if (campersErr) throw campersErr;
+
+      const pdfBuffer = await generateDailySheetPdf({
+        cabinName: cabin.name,
+        weekNum,
+        dayNum,
+        campers: campers ?? [],
+      });
+
+      const safeCabin = cabin.name.toLowerCase().replace(/\s+/g, '-');
+
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="merrick-${safeCabin}-week${weekNum}-day${dayNum}-sheet.pdf"`,
+        'Content-Length': pdfBuffer.length,
+      });
+
+      res.send(pdfBuffer);
+    } catch (err) {
+      console.error('Daily sheet error:', err);
+      res.status(500).json({ error: err.message ?? 'Failed to generate daily sheet' });
     }
   }
 );
